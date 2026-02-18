@@ -222,8 +222,6 @@ private struct TrackpadCard: View {
     @ObservedObject var viewModel: DashboardViewModel
     private let trackpadAspectRatio: CGFloat = 12194.0 / 7408.0
     private let fingerColors: [Color] = [.cyan, .mint, .yellow, .orange, .pink, .purple]
-    private let bezelInsetXRatio: CGFloat = 0.028
-    private let bezelInsetYRatio: CGFloat = 0.08
 
     var body: some View {
         GlassCard {
@@ -239,12 +237,9 @@ private struct TrackpadCard: View {
                 GeometryReader { proxy in
                     let points = viewModel.touchPoints.sorted { $0.id < $1.id }
                     let hardwareRect = trackpadSurfaceRect(in: proxy.size)
-                    let inputRect = hardwareRect.insetBy(
-                        dx: hardwareRect.width * bezelInsetXRatio,
-                        dy: hardwareRect.height * bezelInsetYRatio
-                    )
+                    let inputRect = hardwareRect
                     let hardwareRadius = max(20, min(32, hardwareRect.height * 0.17))
-                    let inputRadius = max(16, min(26, inputRect.height * 0.16))
+                    let inputRadius = hardwareRadius
 
                     ZStack(alignment: .topLeading) {
                         RoundedRectangle(cornerRadius: hardwareRadius, style: .continuous)
@@ -294,7 +289,6 @@ private struct TrackpadCard: View {
                             )
                             .position(x: markerPosition.x, y: markerPosition.y)
                             .shadow(color: fingerColors[index % fingerColors.count].opacity(0.55), radius: 16)
-                            .animation(.spring(response: 0.26, dampingFraction: 0.84), value: point.normalizedPosition)
                         }
 
                         if points.isEmpty {
@@ -327,18 +321,10 @@ private struct TrackpadCard: View {
     }
 
     private func markerPosition(for normalizedPoint: CGPoint, in rect: CGRect) -> CGPoint {
-        let calibratedPoint = calibratedTrackpadPoint(normalizedPoint)
         return CGPoint(
-            x: rect.minX + (calibratedPoint.x * rect.width),
-            y: rect.minY + ((1 - calibratedPoint.y) * rect.height)
+            x: rect.minX + (normalizedPoint.x * rect.width),
+            y: rect.minY + ((1 - normalizedPoint.y) * rect.height)
         )
-    }
-
-    private func calibratedTrackpadPoint(_ point: CGPoint) -> CGPoint {
-        // Sensor coordinates include subtle edge regions that are less representative visually.
-        let x = 0.03 + (min(max(point.x, 0), 1) * 0.94)
-        let y = 0.05 + (min(max(point.y, 0), 1) * 0.9)
-        return CGPoint(x: x, y: y)
     }
 }
 

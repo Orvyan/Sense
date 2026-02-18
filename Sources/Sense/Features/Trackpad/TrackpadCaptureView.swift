@@ -115,6 +115,7 @@ final class TrackpadCaptureNSView: NSView {
         latestStage = 0
         latestFingerCount = 0
         latestTouchPoints = []
+        latestCentroid = nil
         emit(using: event)
     }
 
@@ -150,30 +151,20 @@ final class TrackpadCaptureNSView: NSView {
     private func emit(using event: NSEvent) {
         guard let onSample else { return }
 
-        let touchesFromEvent = event.touches(matching: .touching, in: self)
-        if !touchesFromEvent.isEmpty {
-            updateTouchState(from: touchesFromEvent)
+        let activeTouches = currentActiveTouches(from: event)
+        if !activeTouches.isEmpty {
+            updateTouchState(from: activeTouches)
         } else if event.type == .leftMouseUp {
-            // Keep stale finger-count from sticking when touch callbacks are delayed.
             latestFingerCount = 0
             latestTouchPoints = []
             latestCentroid = nil
-        } else if latestTouchPoints.isEmpty && (latestIsPressing || pointerIsActive) {
-            // Fallback marker if macOS temporarily suppresses multitouch callbacks.
-            let fallbackPoint = normalize(point: convert(event.locationInWindow, from: nil))
-            latestTouchPoints = [TouchPoint(id: -1, normalizedPosition: fallbackPoint)]
-            latestFingerCount = 1
-            latestCentroid = fallbackPoint
         }
-
-        let fallback = normalize(point: convert(event.locationInWindow, from: nil))
-        let centroid = latestCentroid ?? fallback
 
         let sample = TrackpadSample(
             pressure: latestPressure,
             stage: latestStage,
             fingerCount: latestFingerCount,
-            centroid: centroid,
+            centroid: latestCentroid,
             touchPoints: latestTouchPoints,
             timestamp: Date(),
             isPressing: latestIsPressing
@@ -190,12 +181,16 @@ final class TrackpadCaptureNSView: NSView {
             return
         }
 
-        let points = touches.map { touch in
-            TouchPoint(
-                id: ObjectIdentifier(touch.identity).hashValue,
-                normalizedPosition: CGPoint(x: touch.normalizedPosition.x, y: touch.normalizedPosition.y)
-            )
-        }.sorted { $0.id < $1.id }
+        let sortedPositions = touches
+            .map { CGPoint(x: $0.normalizedPosition.x, y: $0.normalizedPosition.y) }
+            .sorted {
+                if $0.x == $1.x { return $0.y < $1.y }
+                return $0.x < $1.x
+            }
+
+        let points = sortedPositions.enumerated().map { index, position in
+            TouchPoint(id: index + 1, normalizedPosition: position)
+        }
 
         latestTouchPoints = points
         latestFingerCount = points.count
@@ -211,6 +206,11 @@ final class TrackpadCaptureNSView: NSView {
             x: sumX / CGFloat(points.count),
             y: sumY / CGFloat(points.count)
         )
+    }
+
+    private func currentActiveTouches(from event: NSEvent) -> Set<NSTouch> {
+        let fromEvent = event.touches(matching: .touching, in: self)
+        return fromEvent
     }
 
     private func installPressureMonitor() {
@@ -246,13 +246,4 @@ final class TrackpadCaptureNSView: NSView {
         min(1, max(0, Double(pressure)))
     }
 
-    private func normalize(point: CGPoint) -> CGPoint {
-        guard bounds.width > 0, bounds.height > 0 else {
-            return CGPoint(x: 0.5, y: 0.5)
-        }
-
-        let normalizedX = min(1, max(0, point.x / bounds.width))
-        let normalizedY = min(1, max(0, point.y / bounds.height))
-        return CGPoint(x: normalizedX, y: normalizedY)
-    }
 }
