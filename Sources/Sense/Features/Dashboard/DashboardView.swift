@@ -52,6 +52,15 @@ struct DashboardView: View {
 private struct WeightCard: View {
     @ObservedObject var viewModel: DashboardViewModel
 
+    private var displayWeightValue: Double {
+        switch viewModel.selectedUnit {
+        case .grams:
+            return viewModel.weightGrams
+        case .newton:
+            return viewModel.weightGrams / 101.97
+        }
+    }
+
     var body: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 18) {
@@ -81,10 +90,21 @@ private struct WeightCard: View {
                                 .font(.system(size: 11, weight: .bold, design: .rounded))
                                 .foregroundStyle(Color.white.opacity(0.7))
 
-                            Text(viewModel.formattedWeight)
-                                .font(.system(size: 34, weight: .bold, design: .rounded))
-                                .foregroundStyle(Color.white)
-                                .contentTransition(.numericText())
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                if viewModel.selectedUnit == .grams {
+                                    Text(displayWeightValue, format: .number.precision(.fractionLength(0)))
+                                        .contentTransition(.numericText(value: displayWeightValue))
+                                } else {
+                                    Text(displayWeightValue, format: .number.precision(.fractionLength(2)))
+                                        .contentTransition(.numericText(value: displayWeightValue))
+                                }
+
+                                Text(viewModel.selectedUnit.rawValue)
+                            }
+                            .font(.system(size: 34, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color.white)
+                            .monospacedDigit()
+                            .animation(.easeOut(duration: 0.22), value: displayWeightValue)
                         }
                     }
                     .frame(width: 220, height: 220)
@@ -176,11 +196,23 @@ private struct TiltCard: View {
 
                         VStack {
                             Spacer()
-                            Text(viewModel.formattedTilt)
+                            if let tilt = viewModel.tiltDegrees {
+                                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                                    Text(tilt, format: .number.precision(.fractionLength(1)))
+                                        .contentTransition(.numericText(value: tilt))
+                                    Text("°")
+                                }
                                 .font(.system(size: 34, weight: .bold, design: .rounded))
                                 .foregroundStyle(Color.white)
-                                .contentTransition(.numericText())
+                                .monospacedDigit()
+                                .animation(.easeOut(duration: 0.2), value: tilt)
                                 .padding(.bottom, 10)
+                            } else {
+                                Text("--.-°")
+                                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Color.white)
+                                    .padding(.bottom, 10)
+                            }
                         }
                     }
                     .frame(width: 220, height: 220)
@@ -284,11 +316,11 @@ private struct TrackpadCard: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(height: 320)
+        .frame(height: 420)
     }
 
     private func trackpadSurfaceRect(in container: CGSize) -> CGRect {
-        let width = min(container.width * 0.98, container.height * trackpadAspectRatio)
+        let width = min(container.width, container.height * trackpadAspectRatio)
         let height = width / trackpadAspectRatio
         let x = (container.width - width) * 0.5
         let y = (container.height - height) * 0.5

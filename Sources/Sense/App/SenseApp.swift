@@ -7,7 +7,7 @@ struct SenseApp: App {
     var body: some Scene {
         WindowGroup {
             DashboardView(viewModel: viewModel)
-                .frame(minWidth: 1080, minHeight: 760)
+                .frame(minWidth: 760, minHeight: 560)
                 .onAppear {
                     viewModel.start()
                 }
@@ -15,6 +15,8 @@ struct SenseApp: App {
                     viewModel.stop()
                 }
         }
+        .defaultSize(width: 1240, height: 900)
+        .windowResizability(.automatic)
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact)
     }
