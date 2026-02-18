@@ -220,6 +220,8 @@ private struct TiltCard: View {
 
 private struct TrackpadCard: View {
     @ObservedObject var viewModel: DashboardViewModel
+    private let trackpadAspectRatio: CGFloat = 12194.0 / 7408.0
+    private let fingerColors: [Color] = [.cyan, .mint, .yellow, .orange, .pink, .purple]
 
     var body: some View {
         GlassCard {
@@ -228,17 +230,16 @@ private struct TrackpadCard: View {
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.white)
 
-                Text("Click inside this area and press with Force Touch. The dot shows contact position.")
+                Text("Place one or more fingers on the trackpad. Each finger appears with its own color.")
                     .font(.system(size: 13, weight: .regular, design: .rounded))
                     .foregroundStyle(Color.white.opacity(0.75))
 
                 GeometryReader { proxy in
-                    let marker = CGPoint(
-                        x: viewModel.centroid.x * proxy.size.width,
-                        y: (1 - viewModel.centroid.y) * proxy.size.height
-                    )
+                    let points = viewModel.touchPoints.sorted { $0.id < $1.id }
+                    let surfaceRect = trackpadSurfaceRect(in: proxy.size)
+                    let cornerRadius = max(18, min(28, surfaceRect.height * 0.16))
 
-                    ZStack {
+                    ZStack(alignment: .topLeading) {
                         RoundedRectangle(cornerRadius: 22, style: .continuous)
                             .fill(
                                 LinearGradient(
@@ -247,46 +248,98 @@ private struct TrackpadCard: View {
                                     endPoint: .bottomTrailing
                                 )
                             )
+                            .frame(width: surfaceRect.width, height: surfaceRect.height)
+                            .position(x: surfaceRect.midX, y: surfaceRect.midY)
 
                         TrackpadCaptureView { sample in
                             viewModel.handleTrackpadSample(sample)
                         }
                         .background(Color.clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                        .frame(width: surfaceRect.width, height: surfaceRect.height)
+                        .position(x: surfaceRect.midX, y: surfaceRect.midY)
 
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+                            .frame(width: surfaceRect.width, height: surfaceRect.height)
+                            .position(x: surfaceRect.midX, y: surfaceRect.midY)
 
-                        if viewModel.fingerCount > 0 || viewModel.isPressing {
-                            Circle()
-                                .fill(
-                                    RadialGradient(
-                                        colors: [Color.cyan.opacity(0.95), Color.blue.opacity(0.2)],
-                                        center: .center,
-                                        startRadius: 1,
-                                        endRadius: 22
-                                    )
-                                )
-                                .frame(width: 44, height: 44)
-                                .position(marker)
-                                .shadow(color: Color.cyan.opacity(0.6), radius: 22)
-                                .animation(.spring(response: 0.28, dampingFraction: 0.82), value: viewModel.centroid)
-                                .animation(.easeInOut(duration: 0.18), value: viewModel.isPressing)
+                        ForEach(Array(points.enumerated()), id: \.element.id) { index, point in
+                            let markerPosition = markerPosition(
+                                for: point.normalizedPosition,
+                                in: surfaceRect
+                            )
+
+                            TouchPointMarker(
+                                index: index + 1,
+                                color: fingerColors[index % fingerColors.count]
+                            )
+                            .position(x: markerPosition.x, y: markerPosition.y)
+                            .shadow(color: fingerColors[index % fingerColors.count].opacity(0.55), radius: 16)
+                            .animation(.spring(response: 0.26, dampingFraction: 0.84), value: point.normalizedPosition)
                         }
 
-                        VStack(spacing: 4) {
-                            Image(systemName: "cursorarrow.motionlines.click")
-                                .font(.system(size: 22, weight: .semibold))
-                                .foregroundStyle(Color.white.opacity(0.55))
-                            Text("Click once to activate the input surface")
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundStyle(Color.white.opacity(0.55))
+                        if points.isEmpty {
+                            VStack(spacing: 4) {
+                                Image(systemName: "hand.tap")
+                                    .font(.system(size: 22, weight: .semibold))
+                                    .foregroundStyle(Color.white.opacity(0.55))
+                                Text("Touch the trackpad to visualize fingers")
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(Color.white.opacity(0.55))
+                            }
+                            .frame(width: surfaceRect.width, height: surfaceRect.height)
+                            .position(x: surfaceRect.midX, y: surfaceRect.midY)
+                            .allowsHitTesting(false)
                         }
-                        .allowsHitTesting(false)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .frame(height: 240)
             }
+        }
+    }
+
+    private func trackpadSurfaceRect(in container: CGSize) -> CGRect {
+        let width = min(container.width, container.height * trackpadAspectRatio)
+        let height = width / trackpadAspectRatio
+        let x = (container.width - width) * 0.5
+        let y = (container.height - height) * 0.5
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    private func markerPosition(for normalizedPoint: CGPoint, in rect: CGRect) -> CGPoint {
+        CGPoint(
+            x: rect.minX + (normalizedPoint.x * rect.width),
+            y: rect.minY + ((1 - normalizedPoint.y) * rect.height)
+        )
+    }
+}
+
+private struct TouchPointMarker: View {
+    let index: Int
+    let color: Color
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [color.opacity(0.96), color.opacity(0.2)],
+                        center: .center,
+                        startRadius: 1,
+                        endRadius: 24
+                    )
+                )
+                .frame(width: 44, height: 44)
+
+            Circle()
+                .fill(Color.white.opacity(0.22))
+                .frame(width: 20, height: 20)
+
+            Text("\(index)")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.9))
         }
     }
 }

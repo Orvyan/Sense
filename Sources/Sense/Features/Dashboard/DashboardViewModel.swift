@@ -1,11 +1,17 @@
 import SwiftUI
 import Combine
 
+struct TouchPoint: Identifiable, Hashable {
+    let id: Int
+    let normalizedPosition: CGPoint
+}
+
 struct TrackpadSample {
     let pressure: Double
     let stage: Int
     let fingerCount: Int
     let centroid: CGPoint?
+    let touchPoints: [TouchPoint]
     let timestamp: Date
     let isPressing: Bool
 }
@@ -29,6 +35,7 @@ final class DashboardViewModel: ObservableObject {
     @Published private(set) var weightGrams: Double = 0
     @Published private(set) var fingerCount: Int = 0
     @Published private(set) var centroid: CGPoint = CGPoint(x: 0.5, y: 0.5)
+    @Published private(set) var touchPoints: [TouchPoint] = []
     @Published private(set) var stage: Int = 0
     @Published private(set) var isPressing: Bool = false
 
@@ -72,7 +79,8 @@ final class DashboardViewModel: ObservableObject {
         pressure = filteredPressure
         stage = sample.stage
         fingerCount = sample.fingerCount
-        isPressing = sample.isPressing || sample.fingerCount > 0
+        touchPoints = sample.touchPoints
+        isPressing = sample.isPressing || sample.fingerCount > 0 || !sample.touchPoints.isEmpty
 
         if let centroid = sample.centroid {
             self.centroid = centroid
