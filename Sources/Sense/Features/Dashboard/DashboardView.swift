@@ -224,96 +224,71 @@ private struct TrackpadCard: View {
     private let fingerColors: [Color] = [.cyan, .mint, .yellow, .orange, .pink, .purple]
 
     var body: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 14) {
-                Label("Trackpad Input Surface", systemImage: "hand.tap")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.white)
+        GeometryReader { proxy in
+            let points = viewModel.touchPoints.sorted { $0.id < $1.id }
+            let padRect = trackpadSurfaceRect(in: proxy.size)
+            let padRadius = max(22, min(36, padRect.height * 0.18))
 
-                Text("Place one or more fingers on the trackpad. Each finger appears with its own color.")
-                    .font(.system(size: 13, weight: .regular, design: .rounded))
-                    .foregroundStyle(Color.white.opacity(0.75))
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: padRadius, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.24), Color.white.opacity(0.08)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: padRect.width, height: padRect.height)
+                    .position(x: padRect.midX, y: padRect.midY)
 
-                GeometryReader { proxy in
-                    let points = viewModel.touchPoints.sorted { $0.id < $1.id }
-                    let hardwareRect = trackpadSurfaceRect(in: proxy.size)
-                    let inputRect = hardwareRect
-                    let hardwareRadius = max(20, min(32, hardwareRect.height * 0.17))
-                    let inputRadius = hardwareRadius
-
-                    ZStack(alignment: .topLeading) {
-                        RoundedRectangle(cornerRadius: hardwareRadius, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.white.opacity(0.24), Color.white.opacity(0.08)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: hardwareRect.width, height: hardwareRect.height)
-                            .position(x: hardwareRect.midX, y: hardwareRect.midY)
-
-                        RoundedRectangle(cornerRadius: hardwareRadius, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.black.opacity(0.35), Color.black.opacity(0.15)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: inputRect.width, height: inputRect.height)
-                            .position(x: inputRect.midX, y: inputRect.midY)
-
-                        TrackpadCaptureView { sample in
-                            viewModel.handleTrackpadSample(sample)
-                        }
-                        .background(Color.clear)
-                        .clipShape(RoundedRectangle(cornerRadius: inputRadius, style: .continuous))
-                        .frame(width: inputRect.width, height: inputRect.height)
-                        .position(x: inputRect.midX, y: inputRect.midY)
-
-                        RoundedRectangle(cornerRadius: inputRadius, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
-                            .frame(width: inputRect.width, height: inputRect.height)
-                            .position(x: inputRect.midX, y: inputRect.midY)
-
-                        ForEach(Array(points.enumerated()), id: \.element.id) { index, point in
-                            let markerPosition = markerPosition(
-                                for: point.normalizedPosition,
-                                in: inputRect
-                            )
-
-                            TouchPointMarker(
-                                index: index + 1,
-                                color: fingerColors[index % fingerColors.count]
-                            )
-                            .position(x: markerPosition.x, y: markerPosition.y)
-                            .shadow(color: fingerColors[index % fingerColors.count].opacity(0.55), radius: 16)
-                        }
-
-                        if points.isEmpty {
-                            VStack(spacing: 4) {
-                                Image(systemName: "hand.tap")
-                                    .font(.system(size: 22, weight: .semibold))
-                                    .foregroundStyle(Color.white.opacity(0.55))
-                                Text("Touch the trackpad to visualize fingers")
-                                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                                    .foregroundStyle(Color.white.opacity(0.55))
-                            }
-                            .frame(width: inputRect.width, height: inputRect.height)
-                            .position(x: inputRect.midX, y: inputRect.midY)
-                            .allowsHitTesting(false)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                TrackpadCaptureView { sample in
+                    viewModel.handleTrackpadSample(sample)
                 }
-                .frame(height: 240)
+                .background(Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: padRadius, style: .continuous))
+                .frame(width: padRect.width, height: padRect.height)
+                .position(x: padRect.midX, y: padRect.midY)
+
+                RoundedRectangle(cornerRadius: padRadius, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
+                    .frame(width: padRect.width, height: padRect.height)
+                    .position(x: padRect.midX, y: padRect.midY)
+
+                ForEach(Array(points.enumerated()), id: \.element.id) { index, point in
+                    let markerPosition = markerPosition(
+                        for: point.normalizedPosition,
+                        in: padRect
+                    )
+
+                    TouchPointMarker(
+                        index: index + 1,
+                        color: fingerColors[index % fingerColors.count]
+                    )
+                    .position(x: markerPosition.x, y: markerPosition.y)
+                    .shadow(color: fingerColors[index % fingerColors.count].opacity(0.55), radius: 16)
+                }
+
+                if points.isEmpty {
+                    VStack(spacing: 4) {
+                        Image(systemName: "hand.tap")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(Color.white.opacity(0.55))
+                        Text("Touch the trackpad")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(Color.white.opacity(0.55))
+                    }
+                    .frame(width: padRect.width, height: padRect.height)
+                    .position(x: padRect.midX, y: padRect.midY)
+                    .allowsHitTesting(false)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(height: 320)
     }
 
     private func trackpadSurfaceRect(in container: CGSize) -> CGRect {
-        let width = min(container.width, container.height * trackpadAspectRatio)
+        let width = min(container.width * 0.98, container.height * trackpadAspectRatio)
         let height = width / trackpadAspectRatio
         let x = (container.width - width) * 0.5
         let y = (container.height - height) * 0.5
