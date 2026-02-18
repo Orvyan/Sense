@@ -20,6 +20,7 @@ final class TrackpadCaptureNSView: NSView {
 
     private var trackingArea: NSTrackingArea?
     private var localPressureMonitor: Any?
+    private var localTouchMonitor: Any?
     private var pointerIsActive = false
 
     private var latestPressure: Double = 0
@@ -63,8 +64,10 @@ final class TrackpadCaptureNSView: NSView {
             window.acceptsMouseMovedEvents = true
             window.makeFirstResponder(self)
             installPressureMonitor()
+            installTouchMonitor()
         } else {
             removePressureMonitor()
+            removeTouchMonitor()
         }
     }
 
@@ -144,7 +147,7 @@ final class TrackpadCaptureNSView: NSView {
     }
 
     private func refreshTouches(_ event: NSEvent) {
-        let touches = event.touches(matching: .touching, in: self)
+        let touches = event.touches(matching: .touching, in: nil)
         updateTouchState(from: touches)
     }
 
@@ -209,17 +212,30 @@ final class TrackpadCaptureNSView: NSView {
     }
 
     private func currentActiveTouches(from event: NSEvent) -> Set<NSTouch> {
-        let fromEvent = event.touches(matching: .touching, in: self)
-        return fromEvent
+        let windowTouches = event.touches(matching: .touching, in: nil)
+        if !windowTouches.isEmpty {
+            return windowTouches
+        }
+
+        let localTouches = event.touches(matching: .touching, in: self)
+        return localTouches
     }
 
     private func installPressureMonitor() {
         guard localPressureMonitor == nil else { return }
 
         localPressureMonitor = NSEvent.addLocalMonitorForEvents(matching: [.pressure]) { [weak self] event in
-            guard let self, let window, event.window === window else {
+            guard let self else {
                 return event
             }
+
+            if let selfWindow = self.window,
+               let eventWindow = event.window,
+               eventWindow !== selfWindow {
+                return event
+            }
+
+            guard self.window != nil else { return event }
 
             let localPoint = self.convert(event.locationInWindow, from: nil)
             let inside = self.bounds.contains(localPoint)
@@ -239,6 +255,50 @@ final class TrackpadCaptureNSView: NSView {
         if let localPressureMonitor {
             NSEvent.removeMonitor(localPressureMonitor)
             self.localPressureMonitor = nil
+        }
+    }
+
+    private func installTouchMonitor() {
+        guard localTouchMonitor == nil else { return }
+
+        let mask: NSEvent.EventTypeMask = [
+            .mouseMoved,
+            .scrollWheel,
+            .gesture,
+            .beginGesture,
+            .endGesture,
+            .swipe,
+            .magnify,
+            .rotate,
+            .smartMagnify
+        ]
+
+        localTouchMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
+            guard let self else {
+                return event
+            }
+
+            if let selfWindow = self.window,
+               let eventWindow = event.window,
+               eventWindow !== selfWindow {
+                return event
+            }
+
+            guard let window = self.window else { return event }
+
+            // Keep touch tracking alive without requiring an initial click.
+            if window.firstResponder !== self {
+                window.makeFirstResponder(self)
+            }
+            self.emit(using: event)
+            return event
+        }
+    }
+
+    private func removeTouchMonitor() {
+        if let localTouchMonitor {
+            NSEvent.removeMonitor(localTouchMonitor)
+            self.localTouchMonitor = nil
         }
     }
 
