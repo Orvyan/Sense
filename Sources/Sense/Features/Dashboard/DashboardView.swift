@@ -83,7 +83,7 @@ private struct WeightCard: View {
                                 style: StrokeStyle(lineWidth: 16, lineCap: .round)
                             )
                             .rotationEffect(.degrees(-90))
-                            .animation(.spring(response: 0.42, dampingFraction: 0.74), value: viewModel.weightProgress)
+                            .animation(.spring(response: 0.78, dampingFraction: 0.9, blendDuration: 0.25), value: viewModel.weightProgress)
 
                         VStack(spacing: 6) {
                             Text("LIVE")
@@ -104,7 +104,7 @@ private struct WeightCard: View {
                             .font(.system(size: 34, weight: .bold, design: .rounded))
                             .foregroundStyle(Color.white)
                             .monospacedDigit()
-                            .animation(.easeOut(duration: 0.22), value: displayWeightValue)
+                            .animation(.easeInOut(duration: 0.52), value: displayWeightValue)
                         }
                     }
                     .frame(width: 220, height: 220)
@@ -188,7 +188,7 @@ private struct TiltCard: View {
                             .clipShape(Capsule())
                             .offset(y: -50)
                             .rotationEffect(needleRotation)
-                            .animation(.spring(response: 0.34, dampingFraction: 0.8), value: viewModel.tiltIndicatorProgress)
+                            .animation(.spring(response: 0.7, dampingFraction: 0.9, blendDuration: 0.2), value: viewModel.tiltIndicatorProgress)
 
                         Circle()
                             .fill(Color.white)
@@ -205,7 +205,7 @@ private struct TiltCard: View {
                                 .font(.system(size: 34, weight: .bold, design: .rounded))
                                 .foregroundStyle(Color.white)
                                 .monospacedDigit()
-                                .animation(.easeOut(duration: 0.2), value: tilt)
+                                .animation(.easeInOut(duration: 0.5), value: tilt)
                                 .padding(.bottom, 10)
                             } else {
                                 Text("--.-°")
