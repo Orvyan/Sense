@@ -75,8 +75,6 @@ final class DashboardViewModel: ObservableObject {
     }
 
     func handleTrackpadSample(_ sample: TrackpadSample) {
-        let filteredPressure = lowPassFilter(next: sample.pressure)
-        pressure = filteredPressure
         stage = sample.stage
         fingerCount = sample.fingerCount
         touchPoints = sample.touchPoints
@@ -86,6 +84,17 @@ final class DashboardViewModel: ObservableObject {
             self.centroid = centroid
         }
 
+        // Strict live behavior: when force is released, reset immediately to zero.
+        let hasForce = sample.pressure > 0.003
+        guard hasForce else {
+            smoothedPressure = 0
+            pressure = 0
+            weightGrams = 0
+            return
+        }
+
+        let filteredPressure = lowPassFilter(next: sample.pressure)
+        pressure = filteredPressure
         let rawWeight = max(0, filteredPressure - tareOffset) * gramsPerFullPressure
         weightGrams = rawWeight
     }

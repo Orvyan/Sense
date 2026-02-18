@@ -16,12 +16,12 @@ final class DisplayTiltMonitor: ObservableObject {
     func start() {
         stop()
 
-        let timer = Timer.scheduledTimer(withTimeInterval: 0.75, repeats: true) { [weak self] _ in
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.poll()
             }
         }
-        timer.tolerance = 0.25
+        timer.tolerance = 0.01
         self.timer = timer
         poll()
     }
@@ -62,11 +62,19 @@ final class DisplayTiltMonitor: ObservableObject {
     }
 
     private func smooth(value: Double) -> Double {
-        let alpha = 0.32
-
         guard let smoothedAngle else {
             smoothedAngle = value
             return value
+        }
+
+        let delta = abs(value - smoothedAngle)
+        let alpha: Double
+        if delta > 3 {
+            alpha = 0.86
+        } else if delta > 1.2 {
+            alpha = 0.68
+        } else {
+            alpha = 0.46
         }
 
         let next = ((1 - alpha) * smoothedAngle) + (alpha * value)

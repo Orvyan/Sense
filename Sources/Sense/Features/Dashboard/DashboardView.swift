@@ -222,6 +222,8 @@ private struct TrackpadCard: View {
     @ObservedObject var viewModel: DashboardViewModel
     private let trackpadAspectRatio: CGFloat = 12194.0 / 7408.0
     private let fingerColors: [Color] = [.cyan, .mint, .yellow, .orange, .pink, .purple]
+    private let bezelInsetXRatio: CGFloat = 0.028
+    private let bezelInsetYRatio: CGFloat = 0.08
 
     var body: some View {
         GlassCard {
@@ -236,11 +238,27 @@ private struct TrackpadCard: View {
 
                 GeometryReader { proxy in
                     let points = viewModel.touchPoints.sorted { $0.id < $1.id }
-                    let surfaceRect = trackpadSurfaceRect(in: proxy.size)
-                    let cornerRadius = max(18, min(28, surfaceRect.height * 0.16))
+                    let hardwareRect = trackpadSurfaceRect(in: proxy.size)
+                    let inputRect = hardwareRect.insetBy(
+                        dx: hardwareRect.width * bezelInsetXRatio,
+                        dy: hardwareRect.height * bezelInsetYRatio
+                    )
+                    let hardwareRadius = max(20, min(32, hardwareRect.height * 0.17))
+                    let inputRadius = max(16, min(26, inputRect.height * 0.16))
 
                     ZStack(alignment: .topLeading) {
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        RoundedRectangle(cornerRadius: hardwareRadius, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.24), Color.white.opacity(0.08)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: hardwareRect.width, height: hardwareRect.height)
+                            .position(x: hardwareRect.midX, y: hardwareRect.midY)
+
+                        RoundedRectangle(cornerRadius: hardwareRadius, style: .continuous)
                             .fill(
                                 LinearGradient(
                                     colors: [Color.black.opacity(0.35), Color.black.opacity(0.15)],
@@ -248,26 +266,26 @@ private struct TrackpadCard: View {
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(width: surfaceRect.width, height: surfaceRect.height)
-                            .position(x: surfaceRect.midX, y: surfaceRect.midY)
+                            .frame(width: inputRect.width, height: inputRect.height)
+                            .position(x: inputRect.midX, y: inputRect.midY)
 
                         TrackpadCaptureView { sample in
                             viewModel.handleTrackpadSample(sample)
                         }
                         .background(Color.clear)
-                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                        .frame(width: surfaceRect.width, height: surfaceRect.height)
-                        .position(x: surfaceRect.midX, y: surfaceRect.midY)
+                        .clipShape(RoundedRectangle(cornerRadius: inputRadius, style: .continuous))
+                        .frame(width: inputRect.width, height: inputRect.height)
+                        .position(x: inputRect.midX, y: inputRect.midY)
 
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        RoundedRectangle(cornerRadius: inputRadius, style: .continuous)
                             .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
-                            .frame(width: surfaceRect.width, height: surfaceRect.height)
-                            .position(x: surfaceRect.midX, y: surfaceRect.midY)
+                            .frame(width: inputRect.width, height: inputRect.height)
+                            .position(x: inputRect.midX, y: inputRect.midY)
 
                         ForEach(Array(points.enumerated()), id: \.element.id) { index, point in
                             let markerPosition = markerPosition(
                                 for: point.normalizedPosition,
-                                in: surfaceRect
+                                in: inputRect
                             )
 
                             TouchPointMarker(
@@ -288,8 +306,8 @@ private struct TrackpadCard: View {
                                     .font(.system(size: 12, weight: .medium, design: .rounded))
                                     .foregroundStyle(Color.white.opacity(0.55))
                             }
-                            .frame(width: surfaceRect.width, height: surfaceRect.height)
-                            .position(x: surfaceRect.midX, y: surfaceRect.midY)
+                            .frame(width: inputRect.width, height: inputRect.height)
+                            .position(x: inputRect.midX, y: inputRect.midY)
                             .allowsHitTesting(false)
                         }
                     }
@@ -309,10 +327,18 @@ private struct TrackpadCard: View {
     }
 
     private func markerPosition(for normalizedPoint: CGPoint, in rect: CGRect) -> CGPoint {
-        CGPoint(
-            x: rect.minX + (normalizedPoint.x * rect.width),
-            y: rect.minY + ((1 - normalizedPoint.y) * rect.height)
+        let calibratedPoint = calibratedTrackpadPoint(normalizedPoint)
+        return CGPoint(
+            x: rect.minX + (calibratedPoint.x * rect.width),
+            y: rect.minY + ((1 - calibratedPoint.y) * rect.height)
         )
+    }
+
+    private func calibratedTrackpadPoint(_ point: CGPoint) -> CGPoint {
+        // Sensor coordinates include subtle edge regions that are less representative visually.
+        let x = 0.03 + (min(max(point.x, 0), 1) * 0.94)
+        let y = 0.05 + (min(max(point.y, 0), 1) * 0.9)
+        return CGPoint(x: x, y: y)
     }
 }
 
